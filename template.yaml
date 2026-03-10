@@ -1,49 +1,43 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-    Ephelion Example Service
+    Hidayah Backend Service
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
     Function:
         MemorySize: 128
-        Timeout: 30
+        Timeout: 60
         Tracing: Active
         Runtime: provided.al2023
-        # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
         LoggingConfig:
-            LogGroup: !Sub /ephelion/${StageName}/example
+            LogGroup: !Sub /hidayah/${StageName}/api
             LogFormat: JSON
         Environment:
             Variables:
                 STAGE: !Sub ${StageName}
-                USER_TABLE: !Ref ExampleTable
-                REDIS_TABLE: !Ref RedisTable
-                DOMAIN: !Sub ${Domain}
 
 Parameters:
     StageName:
         Type: String
         Default: dev
         Description: The stage name for the API Gateway.
-    Domain:
-        Type: String
-        Description: The domain for setting cookies.
-        Default: localhost
 
 Resources:
 
-    Example:
+    DuaApi:
         Type: AWS::ApiGateway::RestApi
         Properties:
             Name: !Sub ${AWS::StackName}
-            Description: !Sub Ephelion Example Service ( ${StageName} )
+            Description: !Sub Hidayah Backend Service ( ${StageName} )
+            EndpointConfiguration:
+                Types:
+                    - REGIONAL
 
 # Default Gateway Responses
     GatewayResponseBadRequestBody:
         Type: AWS::ApiGateway::GatewayResponse
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             ResponseType: BAD_REQUEST_BODY
             StatusCode: 400
             ResponseTemplates:
@@ -52,211 +46,194 @@ Resources:
     GatewayResponseBadRequestParameters:
         Type: AWS::ApiGateway::GatewayResponse
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             ResponseType: BAD_REQUEST_PARAMETERS
             StatusCode: 400
             ResponseTemplates:
                 application/json: '{"statusCode": 400, "message": "Bad request, please check your input", "error": "BAD_REQUEST", "data": null}'
 
-    GatewayResponseMissingAuthToken:
-        Type: AWS::ApiGateway::GatewayResponse
-        Properties:
-            RestApiId: !Ref Example
-            ResponseType: MISSING_AUTHENTICATION_TOKEN
-            StatusCode: 401
-            ResponseTemplates:
-                application/json: '{"statusCode": 401, "message": "Your session has expired, please restart the process.", "error": "UNAUTHORIZED", "data": null}'
-
-    GatewayResponseMissingAuthToken:
-        Type: AWS::ApiGateway::GatewayResponse
-        Properties:
-            RestApiId: !Ref Example
-            ResponseType: UNAUTHORIZED
-            StatusCode: 401
-            ResponseTemplates:
-                application/json: '{"statusCode": 401, "message": "Your session has expired, please restart the process.", "error": "UNAUTHORIZED", "data": null}'
-
     GatewayResponseResourceNotFound:
         Type: AWS::ApiGateway::GatewayResponse
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             ResponseType: RESOURCE_NOT_FOUND
             StatusCode: 404
             ResponseTemplates:
                 application/json: '{"statusCode": 404, "message": "Endpoint does not exist", "error": "RESOURCE_NOT_FOUND", "data": null}'
 
-    GatewayResponseUnauthorized:
-        Type: AWS::ApiGateway::GatewayResponse
-        Properties:
-            RestApiId: !Ref Example
-            ResponseType: ACCESS_DENIED
-            StatusCode: 403
-            ResponseTemplates:
-                application/json: '{"statusCode": 403, "message": "You do not have access to this resources", "error": "UNAUTHORIZED", "data": null}'
-
     GatewayResponseDefault5xx:
         Type: AWS::ApiGateway::GatewayResponse
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             ResponseType: DEFAULT_5XX
             StatusCode: 500
             ResponseTemplates:
                 application/json: '{"statusCode": 500, "message": "Internal server error", "error": "SERVER_ERROR", "data": null}'
 
 # RESOURCES
-    ExampleResource:
+    DuaResource:
         Type: AWS::ApiGateway::Resource
         Properties:
-            ParentId: !GetAtt Example.RootResourceId
-            PathPart: example
-            RestApiId: !Ref Example
+            ParentId: !GetAtt DuaApi.RootResourceId
+            PathPart: dua
+            RestApiId: !Ref DuaApi
+
+    GenerateResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            ParentId: !Ref DuaResource
+            PathPart: generate
+            RestApiId: !Ref DuaApi
+
+    AudioResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            ParentId: !Ref DuaResource
+            PathPart: audio
+            RestApiId: !Ref DuaApi
 
 # MODELS
-    ExampleModel:
+    GenerateDuaModel:
         Type: AWS::ApiGateway::Model
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             ContentType: application/json
-            Description: Model for validate otp request
+            Description: Model for dua generation request
             Schema:
                 $schema: http://json-schema.org/draft-04/schema#
-                title: ValidateOtpModel
+                title: GenerateDuaModel
                 type: object
                 required:
-                  - code
+                  - prompt
                 properties:
-                    code:
-                        type: number
+                    prompt:
+                        type: string
+                        minLength: 1
+                        maxLength: 500
 
-# METHODS
-    ExampleMethod:
+    GenerateAudioModel:
+        Type: AWS::ApiGateway::Model
+        Properties:
+            RestApiId: !Ref DuaApi
+            ContentType: application/json
+            Description: Model for audio generation request
+            Schema:
+                $schema: http://json-schema.org/draft-04/schema#
+                title: GenerateAudioModel
+                type: object
+                required:
+                  - text
+                properties:
+                    text:
+                        type: string
+                        minLength: 1
+
+    GenerateAudioMethod:
         Type: AWS::ApiGateway::Method
         Properties:
-            RestApiId: !Ref Example
-            ResourceId: !Ref ExampleResource
-            HttpMethod: GET
-            AuthorizationType: CUSTOM
-            AuthorizerId: !Ref AuthorizerTokenRequest
-            RequestValidatorId: !Ref GetValidator
-            RequestParameters:
-                method.request.querystring.code_challenge: false
-                method.request.querystring.code_challenge_method: false
-                method.request.querystring.redirect_uri: false
+            RestApiId: !Ref DuaApi
+            ResourceId: !Ref AudioResource
+            HttpMethod: POST
+            AuthorizationType: NONE
+            RequestValidatorId: !Ref PostValidator
+            RequestModels:
+                application/json: !Ref GenerateAudioModel
             Integration:
                 Type: AWS_PROXY
                 IntegrationHttpMethod: POST
-                Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Example.Arn}/invocations
+                Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateAudio.Arn}/invocations
 
 # PERMISSIONS
-    AuthorizerTokenPermission:
+    GenerateAudioPermission:
         Type: AWS::Lambda::Permission
         Properties:
             Action: lambda:InvokeFunction
-            FunctionName: !Ref AuthorizerToken
+            FunctionName: !Ref GenerateAudio
             Principal: apigateway.amazonaws.com
-            SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Example}/*/*
-
-    ExamplePermission:
-        Type: AWS::Lambda::Permission
-        Properties:
-            Action: lambda:InvokeFunction
-            FunctionName: !Ref Example
-            Principal: apigateway.amazonaws.com
-            SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Example}/*/*
-
-# AUTHORIZERS
-    AuthorizerTokenRequest:
-        Type: AWS::ApiGateway::Authorizer
-        Properties:
-            Type: TOKEN
-            RestApiId: !Ref Example
-            Name: !Sub ExampleAuthorizerToken-${StageName}
-            IdentitySource: method.request.header.token
-            AuthorizerResultTtlInSeconds: 300
-            AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerToken.Arn}/invocations
+            SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DuaApi}/*/*
 
 # REQUEST VALIDATORS
-    GetValidator:
-        Type: AWS::ApiGateway::RequestValidator
-        Properties:
-            RestApiId: !Ref Example
-            ValidateRequestBody: false
-            ValidateRequestParameters: true
-
     PostValidator:
         Type: AWS::ApiGateway::RequestValidator
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             ValidateRequestBody: true
             ValidateRequestParameters: false
 
 # LAMBDAS
-    AuthorizerToken:
+    GenerateDua:
         Type: AWS::Serverless::Function
         Metadata:
             BuildMethod: makefile
         Properties:
             Description: !Sub
                 - Stack ${AWS::StackName} Function ${ResourceName}
-                - ResourceName: AuthorizerToken
+                - ResourceName: GenerateDua
             CodeUri: .
             Handler: bootstrap
             Runtime: provided.al2023
             MemorySize: 512
+            Timeout: 60
             Architectures:
                 - arm64
+            FunctionUrlConfig:
+                AuthType: NONE
+                InvokeMode: RESPONSE_STREAM
+                Cors:
+                    AllowCredentials: false
+                    AllowHeaders:
+                        - "*"
+                    AllowMethods:
+                        - POST
+                    AllowOrigins:
+                        - "*"
+                    ExposeHeaders:
+                        - content-type
+                    MaxAge: 86400
             Policies:
-            - Statement:
-                - Effect: Allow
-                  Action:
-                  - dynamodb:GetItem
-                  - dynamodb:Query
-                  - dynamodb:UpdateItem
-                  - ssm:GetParameter
-                  - kms:Decrypt
-                  Resource:
-                  - !GetAtt RedisTable.Arn
-                  - !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ephelion/${StageName}/*
+                - Statement:
+                    - Effect: Allow
+                      Action:
+                      - ssm:GetParameter
+                      - kms:Decrypt
+                      Resource:
+                      - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/hidayah/${StageName}/*
+                      - !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
 
-    Example:
-        Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    GenerateAudio:
+        Type: AWS::Serverless::Function
         Metadata:
             BuildMethod: makefile
         Properties:
             Description: !Sub
                 - Stack ${AWS::StackName} Function ${ResourceName}
-                - ResourceName: Example
-            CodeUri: . # Points to dir of Cargo.toml
-            Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+                - ResourceName: GenerateAudio
+            CodeUri: .
+            Handler: bootstrap
             Runtime: provided.al2023
-            MemorySize: 1024
+            MemorySize: 512
+            Timeout: 60
             Architectures:
                 - arm64
             Policies:
-                - DynamoDBReadPolicy:
-                        TableName: !Ref ExampleTable
-                - DynamoDBCrudPolicy:
-                        TableName: !Ref RedisTable
                 - Statement:
                     - Effect: Allow
                       Action:
                       - ssm:GetParameter
-                      - ssm:GetParameters
                       - kms:Decrypt
-                      Resource: 
+                      Resource:
+                      - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/hidayah/${StageName}/*
                       - !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
-                      - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ephelion/${StageName}/*
-
 
 # DEPLOYMENTS
-    ExampleDeployment:
+    DuaDeployment:
         Type: AWS::ApiGateway::Deployment
         DependsOn:
-            - ExampleMethod
+            - GenerateAudioMethod
         Properties:
-            RestApiId: !Ref Example
+            RestApiId: !Ref DuaApi
             StageName: !Sub ${StageName}
+            Description: streaming-v2
 
 # LOG GROUPS
     LogGroup:
@@ -265,82 +242,13 @@ Resources:
         UpdateReplacePolicy: Retain
         Properties:
             RetentionInDays: 7
-            LogGroupName: !Sub /ephelion/${StageName}/example
+            LogGroupName: !Sub /hidayah/${StageName}/api
 
-# DYNAMODB TABLE
-    ExampleTable:
-        Type: AWS::DynamoDB::Table
-        Properties:
-            TableName: !Sub Ephelion-${StageName}-User
-
-            AttributeDefinitions:
-            - AttributeName: mainId
-              AttributeType: S
-            - AttributeName: sortId
-              AttributeType: S
-            - AttributeName: email
-              AttributeType: S
-            - AttributeName: username
-              AttributeType: S
-
-            BillingMode: PAY_PER_REQUEST
-
-            KeySchema:
-            - AttributeName: mainId
-              KeyType: HASH
-            - AttributeName: sortId
-              KeyType: RANGE
-
-            GlobalSecondaryIndexes:
-            - IndexName: EmailIndex
-              KeySchema:
-              - AttributeName: email
-                KeyType: HASH
-              Projection:
-                ProjectionType: INCLUDE
-                NonKeyAttributes:
-                - id
-                - password
-                - username
-                - status
-
-            - IndexName: UsernameIndex
-              KeySchema:
-              - AttributeName: username
-                KeyType: HASH
-              Projection:
-                ProjectionType: INCLUDE
-                NonKeyAttributes:
-                - id
-                - password
-                - email
-                - username
-                - status
-                    
-            StreamSpecification:
-                StreamViewType: NEW_AND_OLD_IMAGES
-
-    RedisTable:
-        Type: AWS::DynamoDB::Table
-        Properties:
-            TableName: !Sub Ephelion-${StageName}-Redis
-            AttributeDefinitions:
-            - AttributeName: mainId
-              AttributeType: S
-            - AttributeName: sortId
-              AttributeType: S
-            BillingMode: PAY_PER_REQUEST
-            KeySchema:
-            - AttributeName: mainId
-              KeyType: HASH
-            - AttributeName: sortId
-              KeyType: RANGE
-            StreamSpecification:
-                StreamViewType: NEW_AND_OLD_IMAGES
-            TimeToLiveSpecification:
-                AttributeName: ttl
-                Enabled: true
 Outputs:
     Api:
-        Description: API Gateway endpoint URL
-        Value: !Sub "https://${Example}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/"
+        Description: API Gateway endpoint URL (GenerateAudio)
+        Value: !Sub "https://${DuaApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/"
+
+    GenerateDuaFunctionUrl:
+        Description: Lambda Function URL for GenerateDua SSE streaming
+        Value: !GetAtt GenerateDuaUrl.FunctionUrl

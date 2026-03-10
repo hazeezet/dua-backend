@@ -3,7 +3,7 @@
 version = 0.1
 
 [default.global.parameters]
-stack_name = "ephelion-prod-example"
+stack_name = "hidayah-prod"
 
 [default.build.parameters]
 cached = true
@@ -33,11 +33,21 @@ warm_containers = "EAGER"
 warm_containers = "EAGER"
 
 [dev.deploy.parameters]
-stack_name = "ephelion-dev-example"
-s3_prefix = "ephelion-dev-example"
+stack_name = "hidayah-dev"
+s3_prefix = "hidayah-dev"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
 region = "eu-west-1"
-parameter_overrides = "StageName=\"dev\" Domain=\"ephelion.net\""
+parameter_overrides = "StageName=\"dev\""
+image_repositories = []
+
+[prod.deploy.parameters]
+stack_name = "hidayah-prod"
+s3_prefix = "hidayah-prod"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "eu-west-1"
+parameter_overrides = "StageName=\"prod\""
 image_repositories = []
